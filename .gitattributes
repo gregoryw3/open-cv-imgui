@@ -1,0 +1,17 @@
+# Auto-generated .gitattributes file
+
+# Set default behavior for text files
+* text=auto
+
+# Specify specific file types
+*.txt text
+*.md text
+*.html text
+*.css text
+*.js text
+
+# Set specific behavior for binary files
+*.jpg binary
+*.png binary
+*.pdf binary
+*.exe binary
