@@ -1,24 +1,30 @@
 cmake_minimum_required(VERSION 3.12)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../out)
-project(open_cv_web)
-
 set(CMAKE_CXX_STANDARD 17)
+project(example_glfw_opengl3)
 
-set(IMGUI_SOURCES
-    libs/imgui/imgui.h
-    libs/imgui/backends/imgui_impl_glfw.h
-    libs/imgui/backends/imgui_impl_opengl3.h
-)
+# Specify the path to the Emscripten toolchain file
+set(CMAKE_TOOLCHAIN_FILE "$EMSCRIPTEN/cmake/Modules/Platform/Emscripten.cmake")
 
-find_package(OpenCV REQUIRED)
+set(IMGUI_DIR ../libs/imgui)
+
+include_directories(${IMGUI_DIR})
+
+#set(SOURCES
+#        src/main.cpp
+#        ${IMGUI_DIR}/imgui.cpp
+#        ${IMGUI_DIR}/imgui_demo.cpp
+#        ${IMGUI_DIR}/imgui_draw.cpp
+#        ${IMGUI_DIR}/imgui_tables.cpp
+#        ${IMGUI_DIR}/imgui_widgets.cpp
+#        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+#        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+#)
+
+add_executable(${PROJECT_NAME} src/main.cpp)
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+
+find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 
-include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(libs/imgui)
-include_directories(libs/imgui/backends)
-include_directories(/usr/include/GLFW)
-
-add_executable(open_cv_web src/open_cv_web.cpp ${IMGUI_SOURCES})
-
-target_link_libraries(open_cv_web PRIVATE ${OpenCV_LIBS} glfw)
+target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL glfw)
