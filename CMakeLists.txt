@@ -47,6 +47,10 @@ target_sources(docking PRIVATE
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
     ${GLM_DIR}/glm/glm.hpp
+    src/helper.cpp
+    src/Mesh.cpp
+    src/Mesh.h
+    libs/stl.h
 )
 
 target_include_directories(docking PRIVATE

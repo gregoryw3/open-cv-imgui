@@ -1,6 +1,10 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <iostream>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -9,6 +13,8 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "helper.cpp"
+#include "Mesh.h"
 
 const GLint WIDTH = 800;
 const GLint HEIGHT = 600;
@@ -19,6 +25,7 @@ GLuint FBO;
 GLuint RBO;
 GLuint texture_id;
 GLuint shader;
+GLuint shaderProgram;
 
 const char* vertex_shader_code = R"*(
 #version 330
@@ -42,6 +49,47 @@ void main()
 }
 )*";
 
+const char* vertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+    uniform mat4 projection;
+    void main() {
+        gl_Position = projection * vec4(aPos, 1.0);
+    }
+)";
+
+const char* fragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+    void main() {
+        FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+)";
+
+GLuint createShaderProgram() {
+    // Vertex shader
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+
+    // Fragment shader
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+
+    // Shader program
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    // Clean up
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return program;
+}
+
 // Control points for the Bezier curve
 glm::vec3 controlPoints[4] = {
     glm::vec3(0.0f, 0.0f, 0.1f),
@@ -50,6 +98,7 @@ glm::vec3 controlPoints[4] = {
     glm::vec3( 0.3f,  0.3f, 0.4f)
 };
 
+// This is a cubic Bezier curve function
 glm::vec3 bezier(float t, const glm::vec3* controlPoints) {
     float u = 1.0f - t;
     float tt = t * t;
@@ -153,6 +202,18 @@ void add_shader(GLuint program, const char* shader_code, GLenum type)
 	glAttachShader(program, current_shader);
 }
 
+std::string loadShaderSource(const std::string& filePath) {
+    std::ifstream shaderFile(filePath);
+    if (!shaderFile.is_open()) {
+        std::cerr << "Failed to open shader file: " << filePath << std::endl;
+        return "";
+    }
+
+    std::stringstream shaderStream;
+    shaderStream << shaderFile.rdbuf();
+    return shaderStream.str();
+}
+
 void create_shaders()
 {
 	shader = glCreateProgram();
@@ -161,8 +222,20 @@ void create_shaders()
 		exit(1);
 	}
 
-	add_shader(shader, vertex_shader_code, GL_VERTEX_SHADER);
-	add_shader(shader, fragment_shader_code, GL_FRAGMENT_SHADER);
+	const std::string vertexShaderPath = "src/PhongShading_vshader.vert";
+	const std::string fragmentShaderPath = "src/PhongShading_fshader.frag";
+
+	std::string vertexShaderSource = loadShaderSource(vertexShaderPath);
+	std::string fragmentShaderSource = loadShaderSource(fragmentShaderPath);
+
+	const char* vertexShaderCode = vertexShaderSource.c_str();
+	const char* fragmentShaderCode = fragmentShaderSource.c_str();
+
+	// add_shader(shader, vertex_shader_code, GL_VERTEX_SHADER);
+	// add_shader(shader, fragment_shader_code, GL_FRAGMENT_SHADER);
+
+	add_shader(shader, vertexShaderCode, GL_VERTEX_SHADER);
+	add_shader(shader, fragmentShaderCode, GL_FRAGMENT_SHADER);
 
 	GLint result = 0;
 	GLchar log[1024] = {0};
@@ -232,7 +305,7 @@ void rescale_framebuffer(float width, float height)
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 }
 
-
+GLint projectionLoc;
 
 
 int main()
@@ -269,11 +342,19 @@ int main()
 		return 1;
 	}
 
+	// Print the OpenGL version
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "OpenGL version: " << version << std::endl;
+
 	glViewport(0, 0, bufferWidth, bufferHeight);
 
-	create_triangle();
+	// create_triangle();
 	create_shaders();
 	create_framebuffer();
+	glm::vec3 diffuse_color(1.0f, 0.5f, 0.31f);
+    glm::vec3 specular_color(0.5f, 0.5f, 0.5f);
+    float ka = 0.1f, kd = 0.8f, ks = 0.5f, ke = 32.0f;
+    Mesh mesh = Mesh::from_stl("src/suzanne.stl", diffuse_color, specular_color, ka, kd, ks, ke);
 
 
     IMGUI_CHECKVERSION();
@@ -293,6 +374,10 @@ int main()
     ImGui_ImplGlfw_InitForOpenGL(mainWindow, true);
 	ImGui_ImplOpenGL3_Init("#version 330");
 
+	shaderProgram = createShaderProgram();
+	projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+
+
 	while (!glfwWindowShouldClose(mainWindow))
 	{
 		glfwPollEvents();
@@ -303,6 +388,7 @@ int main()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+
         ImGui::NewFrame();
 
 		// This is the main window where we draw our graphics
@@ -310,6 +396,9 @@ int main()
 
 		const float window_width = ImGui::GetContentRegionAvail().x;
 		const float window_height = ImGui::GetContentRegionAvail().y;
+
+		float aspectRatio = (float) window_width / (float)window_height;
+		PerspectiveCamera camera = PerspectiveCamera::fromFOV(60.0f, 0.1f, 100.0f, aspectRatio);
 
 		rescale_framebuffer(window_width, window_height);
 		glViewport(0, 0, window_width, window_height);
@@ -364,6 +453,18 @@ int main()
 			}
 		}
 
+		// Draw lines connecting control points to the curve
+		ImU32 controlLineColor = IM_COL32(255, 0, 0, 255); // Red color for control lines
+		for (int i = 0; i < 3; ++i) {
+			ImVec2 p1 = ImVec2(pos.x + controlPoints[i].x * window_width, pos.y + controlPoints[i].y * window_height);
+			ImVec2 p2 = ImVec2(pos.x + controlPoints[i + 1].x * window_width, pos.y + controlPoints[i + 1].y * window_height);
+			draw_list->AddLine(p1, p2, controlLineColor, 1.0f);
+		}
+
+		glm::mat4 projectionMatrix = camera.getProjectionMatrix();
+		glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+
 		// Any other UI elements you want to draw goes after this
 		ImGui::End();
 
@@ -372,6 +473,8 @@ int main()
 			ImGui::Text("Point %d: (%f, %f, %f)", i, curvePoints[i].x, curvePoints[i].y, curvePoints[i].z);
 		}
 		ImGui::Render();
+
+		mesh.draw(shaderProgram);
 
 
 		bind_framebuffer();
