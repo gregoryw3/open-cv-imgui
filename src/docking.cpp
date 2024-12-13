@@ -355,6 +355,7 @@ int main()
     glm::vec3 specular_color(0.5f, 0.5f, 0.5f);
     float ka = 0.1f, kd = 0.8f, ks = 0.5f, ke = 32.0f;
     Mesh mesh = Mesh::from_stl("src/suzanne.stl", diffuse_color, specular_color, ka, kd, ks, ke);
+	printf("Mesh: %zu\n", mesh.faces.size());
 
 
     IMGUI_CHECKVERSION();
