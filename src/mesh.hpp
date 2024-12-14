@@ -4,6 +4,7 @@
 #include <string>
 #include <glm/glm.hpp>
 #include <GL/glew.h>
+#include "transform.hpp"
 
 class Mesh {
 public:
@@ -14,12 +15,14 @@ public:
     glm::vec3 diffuse_color;
     glm::vec3 specular_color;
     float ka, kd, ks, ke;
+    Transform transform;
 
     Mesh(const glm::vec3& diffuse_color, const glm::vec3& specular_color, float ka, float kd, float ks, float ke);
     static Mesh from_stl(const std::string& stl_path, const glm::vec3& diffuse_color, const glm::vec3& specular_color, float ka, float kd, float ks, float ke);
     void setupMesh();
     void draw(GLuint shaderProgram);
+    GLuint VAO, VBO, EBO;
 
 private:
-    GLuint VAO, VBO, EBO;
+    
 };

@@ -1,3 +1,7 @@
+// https://www.codingwiththomas.com/blog/rendering-an-opengl-framebuffer-into-a-dear-imgui-window
+// https://github.com/ThoSe1990/opengl_imgui
+
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -5,90 +9,33 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <cassert>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "PointLight.hpp"
+#include "Renderer.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "helper.cpp"
-#include "Mesh.h"
+#include "mesh.hpp"
+#include "quaternion.hpp"
+#include "camera.hpp"
+
 
 const GLint WIDTH = 800;
 const GLint HEIGHT = 600;
 
 GLuint VAO;
 GLuint VBO;
+GLuint EBO;
 GLuint FBO;
 GLuint RBO;
 GLuint texture_id;
 GLuint shader;
 GLuint shaderProgram;
-
-const char* vertex_shader_code = R"*(
-#version 330
-
-layout (location = 0) in vec3 pos;
-
-void main()
-{
-	gl_Position = vec4(0.9*pos.x, 0.9*pos.y, 0.5*pos.z, 1.0);
-}
-)*";
-
-const char* fragment_shader_code = R"*(
-#version 330
-
-out vec4 color;
-
-void main()
-{
-	color = vec4(0.0, 1.0, 0.0, 1.0);
-}
-)*";
-
-const char* vertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-    uniform mat4 projection;
-    void main() {
-        gl_Position = projection * vec4(aPos, 1.0);
-    }
-)";
-
-const char* fragmentShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-    void main() {
-        FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    }
-)";
-
-GLuint createShaderProgram() {
-    // Vertex shader
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    // Fragment shader
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    // Shader program
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-
-    // Clean up
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    return program;
-}
 
 // Control points for the Bezier curve
 glm::vec3 controlPoints[4] = {
@@ -160,6 +107,19 @@ Quaternion ToQuaternion(double roll, double pitch, double yaw) // roll (x), pitc
     return q;
 }
 
+void test_list_sizes() {
+    glm::vec3 diffuse_color(1.0f, 0.0f, 1.0f);
+    glm::vec3 specular_color(1.0f, 1.0f, 1.0f);
+    float ka = 0.05f, kd = 1.0f, ks = 0.2f, ke = 100.0f;
+
+    Mesh mesh = Mesh::from_stl("src/models/unit_cube.stl", diffuse_color, specular_color, ka, kd, ks, ke);
+
+    assert(mesh.verts.size() == 8);
+    assert(mesh.faces.size() == 36); // 12 triangles * 3 vertices per triangle
+    assert(mesh.normals.size() == 12);
+	std::cout << "Test passed!\n";
+}
+
 ImU32 HSVtoRGB(float h, float s, float v) {
     float r, g, b;
 
@@ -200,6 +160,35 @@ void create_triangle()
 	glEnableVertexAttribArray(0);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+}
+
+// Takes in a mesh file and binds the appropriate buffers
+void create_stl(const Mesh mesh) {
+
+	// Create and bind VBO for vertex positions
+	GLuint VBO_positions;
+	glGenBuffers(1, &VBO_positions);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_positions);
+	glBufferData(GL_ARRAY_BUFFER, mesh.verts.size() * sizeof(glm::vec3), &mesh.verts[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	// Create and bind VBO for vertex normals
+	GLuint VBO_normals;
+	glGenBuffers(1, &VBO_normals);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_normals);
+	glBufferData(GL_ARRAY_BUFFER, mesh.vertex_normals.size() * sizeof(glm::vec3), &mesh.vertex_normals[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+	glEnableVertexAttribArray(1);
+
+	// Create and bind EBO for faces
+	GLuint EBO;
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.faces.size() * sizeof(GLuint), &mesh.faces[0], GL_STATIC_DRAW);
+
+	// Unbind VAO
 	glBindVertexArray(0);
 }
 
@@ -249,17 +238,14 @@ void create_shaders()
 		exit(1);
 	}
 
-	const std::string vertexShaderPath = "src/PhongShading_vshader.vert";
-	const std::string fragmentShaderPath = "src/PhongShading_fshader.frag";
+	const std::string vertexShaderPath = "src/shaders/PhongShading_vshader.vert";
+	const std::string fragmentShaderPath = "src/shaders/PhongShading_fshader.frag";
 
 	std::string vertexShaderSource = loadShaderSource(vertexShaderPath);
 	std::string fragmentShaderSource = loadShaderSource(fragmentShaderPath);
 
 	const char* vertexShaderCode = vertexShaderSource.c_str();
 	const char* fragmentShaderCode = fragmentShaderSource.c_str();
-
-	// add_shader(shader, vertex_shader_code, GL_VERTEX_SHADER);
-	// add_shader(shader, fragment_shader_code, GL_FRAGMENT_SHADER);
 
 	add_shader(shader, vertexShaderCode, GL_VERTEX_SHADER);
 	add_shader(shader, fragmentShaderCode, GL_FRAGMENT_SHADER);
@@ -282,6 +268,8 @@ void create_shaders()
 		std::cout << "Error validating program:\n" << log << '\n';
 		return;
 	}
+
+	glUseProgram(shader);
 }
 
 void create_framebuffer()
@@ -332,8 +320,46 @@ void rescale_framebuffer(float width, float height)
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 }
 
-GLint projectionLoc;
+void create_mesh(Mesh mesh, GLuint& VAO, GLuint& VBO, GLuint& EBO) {
+	
+	std::vector<GLfloat> vertices;
+	for (size_t i = 0; i < mesh.verts.size(); ++i) {
+		const auto& vert = mesh.verts[i];
+		const auto& normal = mesh.vertex_normals[i];
+		
+		vertices.push_back(vert.x);
+		vertices.push_back(vert.y);
+		vertices.push_back(vert.z);
+		vertices.push_back(normal.x);
+		vertices.push_back(normal.y);
+		vertices.push_back(normal.z);
+    }
 
+	std::vector<GLuint> indices = mesh.faces;
+
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+	glBindVertexArray(VAO);
+
+	// Bind and set vertex buffer
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(GLfloat), vertices.data(), GL_STATIC_DRAW);
+
+	// Bind and set element buffer
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
+
+	// Define the vertex attribute pointers
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+
+	// Unbind the VAO
+    glBindVertexArray(0);
+}
 
 int main()
 {
@@ -369,20 +395,18 @@ int main()
 		return 1;
 	}
 
-	// Print the OpenGL version
-    const GLubyte* version = glGetString(GL_VERSION);
-    std::cout << "OpenGL version: " << version << std::endl;
+	// // Print the OpenGL version
+    // const GLubyte* version = glGetString(GL_VERSION);
+    // std::cout << "OpenGL version: " << version << std::endl;
 
 	glViewport(0, 0, bufferWidth, bufferHeight);
 
+	Mesh mesh = Mesh::from_stl("src/models/unit_cube.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
+
 	// create_triangle();
+	create_mesh(mesh, VAO, VBO, EBO);
 	create_shaders();
 	create_framebuffer();
-	glm::vec3 diffuse_color(1.0f, 0.5f, 0.31f);
-    glm::vec3 specular_color(0.5f, 0.5f, 0.5f);
-    float ka = 0.1f, kd = 0.8f, ks = 0.5f, ke = 32.0f;
-    Mesh mesh = Mesh::from_stl("src/suzanne.stl", diffuse_color, specular_color, ka, kd, ks, ke);
-	printf("Mesh: %zu\n", mesh.faces.size());
 
 
     IMGUI_CHECKVERSION();
@@ -400,33 +424,25 @@ int main()
     }
 
     ImGui_ImplGlfw_InitForOpenGL(mainWindow, true);
-	ImGui_ImplOpenGL3_Init("#version 330");
-
-	shaderProgram = createShaderProgram();
-	projectionLoc = glGetUniformLocation(shaderProgram, "projection");
-
+	ImGui_ImplOpenGL3_Init("#version 410");
 
 	while (!glfwWindowShouldClose(mainWindow))
 	{
 		glfwPollEvents();
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();    
-        
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();    
+		
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
-        ImGui::NewFrame();
-
+		ImGui::NewFrame();
 		// This is the main window where we draw our graphics
-        ImGui::Begin("My Scene", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+		ImGui::Begin("My Scene", 0, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
 		const float window_width = ImGui::GetContentRegionAvail().x;
 		const float window_height = ImGui::GetContentRegionAvail().y;
-
-		float aspectRatio = (float) window_width / (float)window_height;
-		PerspectiveCamera camera = PerspectiveCamera::fromFOV(60.0f, 0.1f, 100.0f, aspectRatio);
 
 		rescale_framebuffer(window_width, window_height);
 		glViewport(0, 0, window_width, window_height);
@@ -488,32 +504,26 @@ int main()
 			ImVec2 p2 = ImVec2(pos.x + controlPoints[i + 1].x * window_width, pos.y + controlPoints[i + 1].y * window_height);
 			draw_list->AddLine(p1, p2, controlLineColor, 1.0f);
 		}
-
-		glm::mat4 projectionMatrix = camera.getProjectionMatrix();
-		glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-
-
+		
 		// Any other UI elements you want to draw goes after this
 		ImGui::End();
 
-		// // Render the curve onto the framebuffer
+		// Render the curve onto the framebuffer
 		for (int i = 0; i < curvePoints.size(); ++i) {
 			ImGui::Text("Point %d: (%f, %f, %f)", i, curvePoints[i].x, curvePoints[i].y, curvePoints[i].z);
 		}
+
+		// This is the OpenGL window
 		ImGui::Render();
-
-		mesh.draw(shaderProgram);
-
-
 		bind_framebuffer();
 		
 		glUseProgram(shader);
 		glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glDrawElements(GL_TRIANGLES, mesh.faces.size(), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 		glUseProgram(0);
 		
-		unbind_framebuffer();	
+		unbind_framebuffer();
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());	
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -534,6 +544,9 @@ int main()
 	glDeleteFramebuffers(1, &FBO);
 	glDeleteTextures(1, &texture_id);
 	glDeleteRenderbuffers(1, &RBO);
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
+	glDeleteBuffers(1, &EBO);
 
     glfwDestroyWindow(mainWindow);
     glfwTerminate();

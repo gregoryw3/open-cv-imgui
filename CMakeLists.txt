@@ -23,11 +23,29 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glm CONFIG REQUIRED)
+# find_package(assimp CONFIG REQUIRED)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+# add_executable(${PROJECT_NAME} src/main.cpp)
 
 # Link the ImGui source files
-target_sources(${PROJECT_NAME} PRIVATE
+# target_sources(${PROJECT_NAME} PRIVATE
+#     ${IMGUI_DIR}/imgui.cpp
+#     ${IMGUI_DIR}/imgui_demo.cpp
+#     ${IMGUI_DIR}/imgui_draw.cpp
+#     ${IMGUI_DIR}/imgui_tables.cpp
+#     ${IMGUI_DIR}/imgui_widgets.cpp
+#     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+#     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+# )
+
+# target_include_directories(${PROJECT_NAME} PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+
+# target_link_libraries(${PROJECT_NAME} OpenGL::GL glfw GLEW::GLEW)
+
+add_executable(test src/test.cpp)
+
+# Link the ImGui source files
+target_sources(test PRIVATE
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
@@ -37,10 +55,20 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+target_include_directories(test PRIVATE
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${GLM_DIR}
+    )
 
-target_link_libraries(${PROJECT_NAME} OpenGL::GL glfw GLEW::GLEW)
+target_link_libraries(test
+    OpenGL::GL
+    glfw
+    GLEW::GLEW
+    glm::glm
+)
 
+# Docking example
 add_executable(docking src/docking.cpp)
 
 target_sources(docking PRIVATE
@@ -52,9 +80,18 @@ target_sources(docking PRIVATE
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
     ${GLM_DIR}/glm/glm.hpp
-    src/helper.cpp
-    src/Mesh.cpp
-    src/Mesh.h
+    src/mesh.cpp
+    src/mesh.hpp
+    src/quaternion.cpp
+    src/quaternion.hpp
+    src/transform.cpp
+    src/transform.hpp
+    src/PointLight.cpp
+    src/PointLight.hpp
+    src/camera.cpp
+    src/camera.hpp
+    src/renderer.cpp
+    src/renderer.hpp
     libs/stl.h
 )
 

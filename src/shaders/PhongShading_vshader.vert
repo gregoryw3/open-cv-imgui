@@ -1,19 +1,3 @@
-// #version 120
-
-// varying vec3 N;
-// varying vec3 v;
-
-// void main(void)
-// {
-
-//    v = vec3(gl_ModelViewMatrix * gl_Vertex);       
-//    N = normalize(gl_NormalMatrix * gl_Normal);
-
-//    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-
-
-// }
-
 #version 410 core
 
 layout(location = 0) in vec3 inPosition;
@@ -32,3 +16,19 @@ void main() {
     fragNormal = mat3(transpose(inverse(model))) * inNormal; // Correctly transform normals
     gl_Position = projection * view * worldPosition;
 }
+
+// #version 120
+
+// varying vec3 N;
+// varying vec3 v;
+
+// void main(void)
+// {
+
+//    v = vec3(gl_ModelViewMatrix * gl_Vertex);       
+//    N = normalize(gl_NormalMatrix * gl_Normal);
+
+//    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+
+
+// }
