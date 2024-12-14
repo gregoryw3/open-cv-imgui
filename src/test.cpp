@@ -16,40 +16,6 @@ enum class ShaderType
 const unsigned int SCREEN_WIDTH = 1280;
 const unsigned int SCREEN_HEIGHT = 960;
 
-GLFWwindow* InitGlfwWindow()
-{
-    GLFWwindow* window;
-
-    /* Initialize the library */
-    if (!glfwInit())
-        return nullptr;
-
-    /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hello Triangle", NULL, NULL);
-    if (!window)
-    {
-        std::cerr << "Error: Window creation failed" << std::endl;
-        glfwTerminate();
-        return nullptr;
-    }
-
-    /* Make the window's context current */
-    glfwMakeContextCurrent(window);
-
-    /* Set swap interval. frame rate */
-    glfwSwapInterval(1);
-
-    /* GLEW test */
-    if (glewInit() != GLEW_OK)
-    {
-        std::cout << "GLEW init error" << std::endl;
-    }
-
-    std::cout << glGetString(GL_VERSION) << std::endl;
-
-    return window;
-}
-
 std::string ParseShader(const std::string& filepath)
 {
     std::ifstream stream(filepath);

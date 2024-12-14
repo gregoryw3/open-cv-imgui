@@ -68,6 +68,45 @@ target_link_libraries(test
     glm::glm
 )
 
+add_executable(new src/new.cpp)
+
+# Link the ImGui source files
+target_sources(new PRIVATE
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    src/mesh.cpp
+    src/mesh.hpp
+    src/quaternion.cpp
+    src/quaternion.hpp
+    src/transform.cpp
+    src/transform.hpp
+    src/PointLight.cpp
+    src/PointLight.hpp
+    src/camera.cpp
+    src/camera.hpp
+    src/renderer.cpp
+    src/renderer.hpp
+    libs/stl.h
+)
+
+target_include_directories(new PRIVATE
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${GLM_DIR}
+    )
+
+target_link_libraries(new
+    OpenGL::GL
+    glfw
+    GLEW::GLEW
+    glm::glm
+)
+
 # Docking example
 add_executable(docking src/docking.cpp)
 

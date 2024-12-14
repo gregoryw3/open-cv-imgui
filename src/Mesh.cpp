@@ -5,18 +5,17 @@
 #include <stl.h>
 
 using namespace openstl;
+using namespace std;
 
-namespace std {
-    template<>
-    struct hash<glm::vec3> {
-        std::size_t operator()(const glm::vec3& v) const noexcept {
-            std::size_t h1 = std::hash<float>{}(v.x);
-            std::size_t h2 = std::hash<float>{}(v.y);
-            std::size_t h3 = std::hash<float>{}(v.z);
-            return h1 ^ (h2 << 1) ^ (h3 << 2);
-        }
-    };
-}
+template<>
+struct hash<glm::vec3> {
+    std::size_t operator()(const glm::vec3& v) const noexcept {
+        std::size_t h1 = std::hash<float>{}(v.x);
+        std::size_t h2 = std::hash<float>{}(v.y);
+        std::size_t h3 = std::hash<float>{}(v.z);
+        return h1 ^ (h2 << 1) ^ (h3 << 2);
+    }
+};
 
 Mesh::Mesh(const glm::vec3& diffuse_color, const glm::vec3& specular_color, float ka, float kd, float ks, float ke)
     : diffuse_color(diffuse_color), specular_color(specular_color), ka(ka), kd(kd), ks(ks), ke(ke) {}
@@ -39,6 +38,9 @@ Mesh Mesh::from_stl(const std::string& stl_path, const glm::vec3& diffuse_color,
 
     // Convert to vertices and faces
     const auto& [vertices, faces] = convertToVerticesAndFaces(triangles);
+    for (const auto& vertex : vertices) {
+        new_mesh.verts.push_back({vertex.x, vertex.y, vertex.z});
+    }
 
     // Extract unique vertices
     std::vector<glm::vec3> unique_verts;
@@ -56,7 +58,7 @@ Mesh Mesh::from_stl(const std::string& stl_path, const glm::vec3& diffuse_color,
             }
         }
     }
-    new_mesh.verts = unique_verts;
+    new_mesh.indices = unique_verts;
 
 
     // Extract faces
@@ -108,39 +110,28 @@ Mesh Mesh::from_stl(const std::string& stl_path, const glm::vec3& diffuse_color,
         normal = glm::normalize(normal);
     }
 
-    new_mesh.setupMesh();
     return new_mesh;
 }
 
-void Mesh::setupMesh() {
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(glm::vec3), &verts[0], GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, faces.size() * sizeof(GLuint), &faces[0], GL_STATIC_DRAW);
-
-    // Vertex positions
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Vertex normals
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), &normals[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(0);
+std::vector<float> Mesh::get_vertices() const {
+    std::vector<float> vertices;
+    for (size_t i = 0; i < verts.size(); ++i) {
+        // Add position
+        vertices.push_back(verts[i].x);
+        vertices.push_back(verts[i].y);
+        vertices.push_back(verts[i].z);
+        // Add normal
+        vertices.push_back(vertex_normals[i].x);
+        vertices.push_back(vertex_normals[i].y);
+        vertices.push_back(vertex_normals[i].z);
+    }
+    return vertices;
 }
 
-void Mesh::draw(GLuint shaderProgram) {
-    glUseProgram(shaderProgram);
-    glBindVertexArray(VAO);
-    glDrawElements(GL_TRIANGLES, faces.size(), GL_UNSIGNED_INT, 0);
-    glBindVertexArray(0);
+std::vector<float> Mesh::get_indices() const  {
+    std::vector<float> indices;
+    for (size_t i = 0; i < faces.size(); ++i) {
+        indices.push_back(faces[i]);
+    }
+    return indices;
 }
