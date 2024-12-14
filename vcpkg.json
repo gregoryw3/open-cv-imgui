@@ -1,10 +1,5 @@
 {
-    "name": "open-cv-imgui",
-    "version": "1.0.0",
-    "dependencies": [
-        "opengl",
-        "glfw3",
-        "glew",
-        "glm"
-    ]
+  "dependencies": [
+    "glfw3"
+  ]
 }

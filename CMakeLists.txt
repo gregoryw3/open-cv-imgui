@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
+set(CMAKE_C_COMPILER "C:/MinGW/bin/gcc.exe")
+set(CMAKE_CXX_COMPILER "C:/MinGW/bin/g++.exe")
+# set(CMAKE_GENERATOR Ninja)
+# set(CMAKE_MAKE_PROGRAM Ninja)
+
 project(example_glfw_opengl3)
 
 # Specify the path to the Emscripten toolchain file

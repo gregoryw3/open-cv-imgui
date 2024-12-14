@@ -99,19 +99,19 @@ glm::vec3 controlPoints[4] = {
 };
 
 // This is a cubic Bezier curve function
-glm::vec3 bezier(float t, const glm::vec3* controlPoints) {
-    float u = 1.0f - t;
-    float tt = t * t;
-    float uu = u * u;
-    float uuu = uu * u;
-    float ttt = tt * t;
+glm::vec3 bezier(float scaler, const glm::vec3* controlPoints) {
+    float scaler_coeff = 1.0f - scaler;
+    float scaler_squared = scaler * scaler;
+    float scaler_coeff_squared = scaler_coeff * scaler_coeff;
+    float scaler_coeff_cubed = scaler_coeff_squared * scaler_coeff;
+    float scaler_cubed = scaler_squared * scaler;
 
-    glm::vec3 p = uuu * controlPoints[0]; // (1-t)^3 * P0
-    p += 3 * uu * t * controlPoints[1];   // 3 * (1-t)^2 * t * P1
-    p += 3 * u * tt * controlPoints[2];   // 3 * (1-t) * t^2 * P2
-    p += ttt * controlPoints[3];          // t^3 * P3
+    glm::vec3 point = scaler_coeff_cubed * controlPoints[0]; // (1-t)^3 * P0
+    point += 3 * scaler_coeff_squared * scaler * controlPoints[1];   // 3 * (1-t)^2 * t * P1
+    point += 3 * scaler_coeff * scaler_squared * controlPoints[2];   // 3 * (1-t) * t^2 * P2
+    point += scaler_cubed * controlPoints[3];          // t^3 * P3
 
-    return p;
+    return point;
 }
 
 std::vector<glm::vec3> generateBezierCurve(const glm::vec3* controlPoints, int numPoints) {
@@ -131,6 +131,33 @@ void showBezierControlPoints() {
     }
 
     ImGui::End();
+}
+
+struct Quaternion
+{
+    double w, x, y, z;
+};
+
+// Code borrowed from https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+// This is not in game format, it is in mathematical format.
+Quaternion ToQuaternion(double roll, double pitch, double yaw) // roll (x), pitch (y), yaw (z), angles are in radians
+{
+    // Abbreviations for the various angular functions
+
+    double cr = cos(roll * 0.5);
+    double sr = sin(roll * 0.5);
+    double cp = cos(pitch * 0.5);
+    double sp = sin(pitch * 0.5);
+    double cy = cos(yaw * 0.5);
+    double sy = sin(yaw * 0.5);
+
+    Quaternion q;
+    q.w = cr * cp * cy + sr * sp * sy;
+    q.x = sr * cp * cy - cr * sp * sy;
+    q.y = cr * sp * cy + sr * cp * sy;
+    q.z = cr * cp * sy - sr * sp * cy;
+
+    return q;
 }
 
 ImU32 HSVtoRGB(float h, float s, float v) {
