@@ -23,7 +23,7 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glm CONFIG REQUIRED)
-# find_package(assimp CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 
 # add_executable(${PROJECT_NAME} src/main.cpp)
 
@@ -105,44 +105,45 @@ target_link_libraries(new
     glfw
     GLEW::GLEW
     glm::glm
+    assimp::assimp
 )
 
 # Docking example
-add_executable(docking src/docking.cpp)
+# add_executable(docking src/docking.cpp)
 
-target_sources(docking PRIVATE
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
-    ${GLM_DIR}/glm/glm.hpp
-    src/mesh.cpp
-    src/mesh.hpp
-    src/quaternion.cpp
-    src/quaternion.hpp
-    src/transform.cpp
-    src/transform.hpp
-    src/PointLight.cpp
-    src/PointLight.hpp
-    src/camera.cpp
-    src/camera.hpp
-    src/renderer.cpp
-    src/renderer.hpp
-    libs/stl.h
-)
+# target_sources(docking PRIVATE
+#     ${IMGUI_DIR}/imgui.cpp
+#     ${IMGUI_DIR}/imgui_demo.cpp
+#     ${IMGUI_DIR}/imgui_draw.cpp
+#     ${IMGUI_DIR}/imgui_tables.cpp
+#     ${IMGUI_DIR}/imgui_widgets.cpp
+#     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+#     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+#     ${GLM_DIR}/glm/glm.hpp
+#     src/mesh.cpp
+#     src/mesh.hpp
+#     src/quaternion.cpp
+#     src/quaternion.hpp
+#     src/transform.cpp
+#     src/transform.hpp
+#     src/PointLight.cpp
+#     src/PointLight.hpp
+#     src/camera.cpp
+#     src/camera.hpp
+#     src/renderer.cpp
+#     src/renderer.hpp
+#     libs/stl.h
+# )
 
-target_include_directories(docking PRIVATE
-    ${IMGUI_DIR}
-    ${IMGUI_DIR}/backends
-    ${GLM_DIR}
-    )
+# target_include_directories(docking PRIVATE
+#     ${IMGUI_DIR}
+#     ${IMGUI_DIR}/backends
+#     ${GLM_DIR}
+#     )
 
-target_link_libraries(docking
-    OpenGL::GL
-    glfw
-    GLEW::GLEW
-    glm::glm
-)
+# target_link_libraries(docking
+#     OpenGL::GL
+#     glfw
+#     GLEW::GLEW
+#     glm::glm
+# )

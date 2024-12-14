@@ -5,17 +5,33 @@
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "glm/matrix.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <iostream>
+#include <cassert>
+
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include "mesh.hpp"
+
 
 
 const GLint WIDTH = 800;
@@ -30,9 +46,6 @@ enum class ShaderType
 
 // const unsigned int SCREEN_WIDTH = 1280;
 // const unsigned int SCREEN_HEIGHT = 960;
-
-const unsigned int SCREEN_WIDTH = 800;
-const unsigned int SCREEN_HEIGHT = 600;
 
 GLuint VAO;
 GLuint VBO;
@@ -191,6 +204,157 @@ void rescale_framebuffer(float width, float height)
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 }
 
+// Control points for the Bezier curve
+// glm::vec3 controlPoints[4] = {
+//     glm::vec3(0.0f, 0.0f, 0.1f),
+//     glm::vec3(0.1f,  0.1f, 0.2f),
+//     glm::vec3( 0.2f, 0.2f, 0.3f),
+//     glm::vec3( 0.3f,  0.3f, 0.4f)
+// };
+std::vector<glm::vec3> controlPoints = {
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.987f),
+    glm::vec3(0.0f, 0.0f, 1.922f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 3.948f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 2.878f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 0.0f, 1.299f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f, 2.129f, 0.0f),
+    glm::vec3(0.0f, 3.948f, 4.0f),
+    glm::vec3(0.0f, 2.398f, 4.0f),
+    glm::vec3(3.105f, 0.935f, 4.0f),
+    glm::vec3(0.0f, 0.0f, 4.0f),
+
+};
+
+std::vector<glm::vec3> cameraControlPoints = {
+    glm::vec3(0.0f, 2.398f, 4.0f),
+    glm::vec3(0.0f, 0.0f, 4.0f),
+    glm::vec3(3.105f, 0.935f, 4.0f),
+    glm::vec3(0.0f, 0.0f, 4.0f)
+};
+
+std::vector<glm::quat> rotationControlPoints = {
+    glm::quat(glm::vec3(0.0f, 0.0f, 0.0f)), // Identity quaternion (no rotation)
+    glm::quat(glm::vec3(glm::radians(100.0f), 0.3f, 0.0f)), // Rotate 45 degrees around the x-axis
+    glm::quat(glm::vec3(0.0f, glm::radians(-136.0f), 0.0f)), // Rotate 45 degrees around the y-axis
+    glm::quat(glm::vec3(0.0f, 0.0f, glm::radians(172.0f)))  // Rotate 45 degrees around the z-axis
+};
+
+// This is a cubic Bezier curve function
+glm::vec3 bezier(float scaler, const glm::vec3* controlPoints) {
+    float scaler_coeff = 1.0f - scaler;
+    float scaler_squared = scaler * scaler;
+    float scaler_coeff_squared = scaler_coeff * scaler_coeff;
+    float scaler_coeff_cubed = scaler_coeff_squared * scaler_coeff;
+    float scaler_cubed = scaler_squared * scaler;
+
+    glm::vec3 point = scaler_coeff_cubed * controlPoints[0]; // (1-t)^3 * P0
+    point += 3 * scaler_coeff_squared * scaler * controlPoints[1];   // 3 * (1-t)^2 * t * P1
+    point += 3 * scaler_coeff * scaler_squared * controlPoints[2];   // 3 * (1-t) * t^2 * P2
+    point += scaler_cubed * controlPoints[3];          // t^3 * P3
+
+    return point;
+}
+
+std::vector<glm::vec3> generateBezierCurve(const glm::vec3* controlPoints, int numPoints) {
+    std::vector<glm::vec3> curvePoints;
+    for (int i = 0; i <= numPoints; ++i) {
+        float t = (float)i / (float)numPoints;
+        curvePoints.push_back(bezier(t, controlPoints));
+    }
+    return curvePoints;
+}
+
+glm::vec3 calculateBezierPoint(float t, const std::vector<glm::vec3>& controlPoints) {
+    size_t n = controlPoints.size() - 1;
+    glm::vec3 point(0.0f);
+    for (size_t i = 0; i <= n; ++i) {
+        float binomialCoeff = static_cast<float>(tgamma(n + 1) / (tgamma(i + 1) * tgamma(n - i + 1)));
+        float powT = glm::pow(t, i);
+        float powOneMinusT = glm::pow(1 - t, n - i);
+        point += binomialCoeff * powT * powOneMinusT * controlPoints[i];
+    }
+    return point;
+}
+
+glm::quat slerp(float t, const std::vector<glm::quat>& controlPoints) {
+    size_t n = controlPoints.size() - 1;
+    glm::quat result = controlPoints[0];
+    for (size_t i = 1; i <= n; ++i) {
+        float binomialCoeff = static_cast<float>(tgamma(n + 1) / (tgamma(i + 1) * tgamma(n - i + 1)));
+        float powT = glm::pow(t, i);
+        float powOneMinusT = glm::pow(1 - t, n - i);
+        result = glm::slerp(result, controlPoints[i], binomialCoeff * powT * powOneMinusT);
+    }
+    return result;
+}
+
+void showBezierControlPoints() {
+    ImGui::Begin("Bezier Control Points");
+
+    for (int i = 0; i < controlPoints.size(); ++i) {
+        ImGui::SliderFloat3(("Control Point " + std::to_string(i)).c_str(), &controlPoints[i].x, 0.0f, 4.0f);
+    }
+
+    for (int i = 0; i < cameraControlPoints.size(); ++i) {
+        ImGui::SliderFloat3(("Camera Control Point " + std::to_string(i)).c_str(), &cameraControlPoints[i].x, 0.0f, 4.0f);
+    }
+
+    for (int i = 0; i < rotationControlPoints.size(); ++i) {
+        ImGui::SliderAngle(("Rotation Control Point " + std::to_string(i)).c_str(), &rotationControlPoints[i].x);
+    }
+
+    ImGui::End();
+}
+
+GLuint curveVAO, curveVBO;
+
+void setupCurveBuffers(const std::vector<glm::vec3>& curvePoints) {
+    glGenVertexArrays(1, &curveVAO);
+    glGenBuffers(1, &curveVBO);
+
+    glBindVertexArray(curveVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, curveVBO);
+    glBufferData(GL_ARRAY_BUFFER, curvePoints.size() * sizeof(glm::vec3), curvePoints.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+}
+
+ImU32 HSVtoRGB(float h, float s, float v) {
+    float r, g, b;
+
+    int i = int(h * 6);
+    float f = h * 6 - i;
+    float p = v * (1 - s);
+    float q = v * (1 - f * s);
+    float t = v * (1 - (1 - f) * s);
+
+    switch (i % 6) {
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
+
+    return IM_COL32(int(r * 255), int(g * 255), int(b * 255), 255);
+}
+
 std::string ParseShader(const std::string& filepath)
 {
     std::ifstream stream(filepath);
@@ -258,6 +422,35 @@ int GetUniformLocation(unsigned int shaderProgramID, const std::string& name)
     }
 
     return location;
+}
+
+GLuint secondVaoID, secondVboID, secondIboID;
+
+void create_mesh(GLuint& vaoID, GLuint& vboID, GLuint& iboID, const Mesh& mesh) {
+    // Vertices
+    const unsigned int NUM_POS_ATTRIB = 3;
+    const unsigned int NUM_NORMAL_ATTRIB = 3;
+    const unsigned int stride = (NUM_POS_ATTRIB + NUM_NORMAL_ATTRIB) * sizeof(float);
+
+    glGenVertexArrays(1, &vaoID);
+    glGenBuffers(1, &vboID);
+    glGenBuffers(1, &iboID);
+
+    glBindVertexArray(vaoID);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vboID);
+    glBufferData(GL_ARRAY_BUFFER, mesh.vertices.size() * sizeof(float), mesh.vertices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboID);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size() * sizeof(GLuint), mesh.indices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
 }
 
 int main()
@@ -372,41 +565,52 @@ int main()
         -0.5f, -0.5f,  0.5f,        0.0f, -1.0f, 0.0f  // 23
     };
 
+    Mesh mesh = Mesh::test("src/models/unit_sphere.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
+    // Mesh mesh2 = Mesh::test("src/models/unit_sphere.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
+    // create_mesh(secondVaoID, secondVboID, secondIboID, mesh2);
+
+    // Print out each value of mesh.vertices and vertices
+    // for (size_t i = 0; i < sizeof(vertices); ++i)
+    // {
+    //     std::cout << "mesh.vertices[" << i << "]: " << mesh.vertices[i] << "vertices" << i << "]: " << vertices[i] << std::endl;
+    // }
+
     unsigned int vboID;
     glGenBuffers(1, &vboID);                    // generate an id for this buffer
     glBindBuffer(GL_ARRAY_BUFFER, vboID);       // actively working on this buffer id
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);  // load vertices to this buffer
+    glBufferData(GL_ARRAY_BUFFER, mesh.vertices.size() * 6 * sizeof(float), &mesh.vertices[0], GL_STATIC_DRAW);  // load vertices to this buffer
 
     /* ----------------------------------------------------
                            IBO
     -----------------------------------------------------*/
     // Index buffer
     // cube
-    unsigned int indices[] = {
-        0, 1, 2,    // front
-        0, 2, 3,
+    // unsigned int indices[] = {
+    //     0, 1, 2,    // front
+    //     0, 2, 3,
 
-        4, 5, 6,    // back
-        4, 6, 7,
+    //     4, 5, 6,    // back
+    //     4, 6, 7,
 
-        8,  9, 10,  // left
-        9, 10, 11,
+    //     8,  9, 10,  // left
+    //     9, 10, 11,
 
-        12, 13, 14, // right
-        12, 14, 15,
+    //     12, 13, 14, // right
+    //     12, 14, 15,
 
-        16, 17, 18, // up
-        16, 18, 19,
+    //     16, 17, 18, // up
+    //     16, 18, 19,
 
-        20, 21, 22, // down
-        20, 22, 23        
-    };
-    unsigned int numVertices = sizeof(indices) / sizeof(float);
-    
+    //     20, 21, 22, // down
+    //     20, 22, 23        
+    // };
+    // unsigned int numVertices = sizeof(indices) / sizeof(float);
+    unsigned int numIndicies = mesh.indices.size();
+
     unsigned int iboID;
     glGenBuffers(1, &iboID);                        // generate an id for this buffer
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboID);   // actively working on this buffer id
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);    // load indices to this buffer
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size() * sizeof(float), &mesh.indices[0], GL_STATIC_DRAW);    // load indices to this buffer
 
     /* ----------------------------------------------------
                      VAO Setup completed
@@ -499,14 +703,21 @@ int main()
     glm::vec3 lightPos = glm::vec3(5.0f, 3.0f, 0.0f);
     glm::mat4 lightModel = glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.2f)), lightPos);
 
+    float t = 0.0f;
+    float tIncrement = (1.0/2000.0); // Adjust this value to control the speed of movement along the curve
+
+    // Calculate the position on the Bezier curve for the camera
+    glm::vec3 cameraBezierPoint = calculateBezierPoint(t, cameraControlPoints);
+
     // View matrix. Also known as camera matrix
-    glm::vec3 camPos = glm::vec3(0.0f, 0.0f, 5.0f);
+    glm::vec3 camPos = glm::vec3(0.0f, 0.0f, 100.0f);
     glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 camUp = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
 
+
     // Projection matrix
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);  // perspective projection
+    glm::mat4 proj = glm::perspective(glm::radians(90.0f), (float)WIDTH / (float)HEIGHT, 0.1f, 1000.0f);  // perspective projection
 
     /* ----------------------------------------------------
                        Draw loop
@@ -546,6 +757,82 @@ int main()
 			ImVec2(1, 0)
 		);
 
+        showBezierControlPoints();
+        std::vector<glm::vec3> curvePoints = generateBezierCurve(controlPoints.data(), 1000);
+        setupCurveBuffers(curvePoints);
+
+        // Draw the Bezier curve in 3D
+        glBindVertexArray(curveVAO);
+        glDrawArrays(GL_LINE_STRIP, 0, curvePoints.size());
+        glBindVertexArray(0);
+
+		// Draw the Bezier curve with depth visualization
+		ImDrawList* draw_list = ImGui::GetWindowDrawList();
+		for (int i = 0; i < curvePoints.size() - 1; ++i) {
+			ImVec2 p1 = ImVec2(pos.x + curvePoints[i].x * window_width, pos.y + curvePoints[i].y * window_height);
+			ImVec2 p2 = ImVec2(pos.x + curvePoints[i + 1].x * window_width, pos.y + curvePoints[i + 1].y * window_height);
+
+			// Adjust color based on z-coordinate
+			float depth1 = (curvePoints[i].z + 1.0f) / 2.0f; // Normalize z to [0, 1]
+			float depth2 = (curvePoints[i + 1].z + 1.0f) / 2.0f; // Normalize z to [0, 1]
+			ImU32 color1 = HSVtoRGB(depth1 * 0.8f, 1.0f, 1.0f); // Adjust hue range for better visualization
+			ImU32 color2 = HSVtoRGB(depth2 * 0.8f, 1.0f, 1.0f); // Adjust hue range for better visualization
+
+			// Adjust thickness based on z-coordinate (thinner as it goes further back)
+			float thickness1 = 5.0f - depth1 * 4.0f; // Thickness range from 5 to 1
+			float thickness2 = 5.0f - depth2 * 4.0f; // Thickness range from 5 to 1
+
+			draw_list->AddLine(p1, p2, color1, thickness1);
+		}
+
+        for (int i = 0; i < cameraControlPoints.size() - 1; ++i) {
+            ImVec2 p1 = ImVec2(pos.x + cameraControlPoints[i].x * window_width, pos.y + cameraControlPoints[i].y * window_height);
+            ImVec2 p2 = ImVec2(pos.x + cameraControlPoints[i + 1].x * window_width, pos.y + cameraControlPoints[i + 1].y * window_height);
+            draw_list->AddLine(p1, p2, IM_COL32(0, 255, 0, 255), 1.0f);
+        }
+
+		// Draw control points as draggable handles with smokey gray color
+		ImU32 controlPointColor = IM_COL32(169, 169, 169, 255); // Smokey gray color
+		for (int i = 0; i < 4; ++i) {
+			ImVec2 handle_pos = ImVec2(pos.x + controlPoints[i].x * window_width, pos.y + controlPoints[i].y * window_height);
+
+			draw_list->AddCircleFilled(handle_pos, 5.0f, controlPointColor);
+
+			ImGui::SetCursorScreenPos(ImVec2(handle_pos.x - 5, handle_pos.y - 5)); // Adjust for handle size
+			ImGui::InvisibleButton(("Object Control Handle" + std::to_string(i)).c_str(), ImVec2(10, 10));
+
+			if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+				ImVec2 mouse_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+				controlPoints[i].x += mouse_delta.x / window_width;
+				controlPoints[i].y += mouse_delta.y / window_height;
+				ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+			}
+		}
+
+        for (int i = 0; i < cameraControlPoints.size(); ++i) {
+            ImVec2 handle_pos = ImVec2(pos.x + cameraControlPoints[i].x * window_width, pos.y + cameraControlPoints[i].y * window_height);
+
+            draw_list->AddCircleFilled(handle_pos, 5.0f, IM_COL32(0, 255, 0, 255));
+
+            ImGui::SetCursorScreenPos(ImVec2(handle_pos.x - 5, handle_pos.y - 5)); // Adjust for handle size
+            ImGui::InvisibleButton(("Camera Control Handle" + std::to_string(i)).c_str(), ImVec2(10, 10));
+
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 mouse_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+                cameraControlPoints[i].x += mouse_delta.x / window_width;
+                cameraControlPoints[i].y += mouse_delta.y / window_height;
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+            }
+        }
+
+		// Draw lines connecting control points to the curve
+		ImU32 controlLineColor = IM_COL32(255, 0, 0, 255); // Red color for control lines
+		for (int i = 0; i < 3; ++i) {
+			ImVec2 p1 = ImVec2(pos.x + controlPoints[i].x * window_width, pos.y + controlPoints[i].y * window_height);
+			ImVec2 p2 = ImVec2(pos.x + controlPoints[i + 1].x * window_width, pos.y + controlPoints[i + 1].y * window_height);
+			draw_list->AddLine(p1, p2, controlLineColor, 1.0f);
+		}
+
 		ImGui::End();
 		ImGui::Render();
 
@@ -557,10 +844,19 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         {
 
-        /* ----------------------------------------------------
+            /* ----------------------------------------------------
                              Draw the object cube
             -----------------------------------------------------*/
-            cubeModel = glm::rotate(cubeModel, glm::radians(0.3f), glm::vec3(0.0f, 1.0f, 1.0f));    // Rotate the model
+
+            glm::vec3 cameraBezierPoint = calculateBezierPoint(t, cameraControlPoints);
+            view = glm::lookAt(cameraBezierPoint, cameraBezierPoint + camFront, camUp);
+
+            glm::vec3 bezierPoint = calculateBezierPoint(t, controlPoints);
+            // cubeModel = glm::rotate(cubeModel, glm::radians(0.3f), glm::vec3(0.0f, 1.0f, 1.0f));    // Rotate the model
+            cubeModel = glm::translate(glm::mat4(0.5f), bezierPoint);
+            glm::quat rotationQuat = slerp(t, rotationControlPoints);
+            cubeModel = glm::rotate(cubeModel, glm::angle(rotationQuat), glm::axis(rotationQuat));
+
 
             // Set shader values
             glUseProgram(shaderProgramID);      // activate shaders
@@ -601,12 +897,33 @@ int main()
             glBindVertexArray(vaoID);
 
             // Draw
-            glDrawElements(GL_TRIANGLES, numVertices, GL_UNSIGNED_INT, nullptr);
+            glDrawElements(GL_TRIANGLES, numIndicies, GL_UNSIGNED_INT, nullptr);
 
             // Unbind
             glUseProgram(0);
             glBindVertexArray(0);
         }
+
+        // {
+        //     // Draw the second object
+        //     glm::mat4 secondModel = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)); // Adjust the position as needed
+        //     glUseProgram(shaderProgramID);
+        //     {
+        //         int location = GetUniformLocation(shaderProgramID, "u_model");
+        //         glUniformMatrix4fv(location, 1, GL_FALSE, &secondModel[0][0]);
+
+        //         location = GetUniformLocation(shaderProgramID, "u_view");
+        //         glUniformMatrix4fv(location, 1, GL_FALSE, &view[0][0]);
+
+        //         location = GetUniformLocation(shaderProgramID, "u_proj");
+        //         glUniformMatrix4fv(location, 1, GL_FALSE, &proj[0][0]);
+        //     }
+        //     glBindVertexArray(secondVaoID);
+        //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, secondIboID); // Ensure the IBO is bound
+        //     glDrawElements(GL_TRIANGLES, mesh2.indices.size(), GL_UNSIGNED_INT, nullptr);
+        //     glBindVertexArray(0);
+        //     glUseProgram(0);
+        // }
 
         {
             /* ----------------------------------------------------
@@ -635,7 +952,7 @@ int main()
             glBindVertexArray(lightVaoID);
 
             // Draw
-            glDrawElements(GL_TRIANGLES, numVertices, GL_UNSIGNED_INT, nullptr);
+            glDrawElements(GL_TRIANGLES, numIndicies, GL_UNSIGNED_INT, nullptr);
 
             // Unbind
             glUseProgram(0);
@@ -660,6 +977,11 @@ int main()
         }
 
 		glfwSwapBuffers(mainWindow);
+        // Increment t to move along the Bezier curve
+        t += tIncrement;
+        if (t > 1.0f) {
+            t = 0.0f; // Loop back to the start of the curve
+        }
 	}
 
     ImGui_ImplOpenGL3_Shutdown();
