@@ -1,38 +1,25 @@
+// https://www.codingwiththomas.com/blog/rendering-an-opengl-framebuffer-into-a-dear-imgui-window
+// https://github.com/ThoSe1990/opengl_imgui
+// https://github.com/tiffanychen1118/Phong-Lighting
+
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <sstream>
+#include <cassert>
 
 #include <GL/glew.h>
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
 
-#include "glm/matrix.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <iostream>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <iostream>
-#include <cassert>
-
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 #include "mesh.hpp"
 
-
+using namespace std;
+using namespace glm;
 
 const GLint WIDTH = 800;
 const GLint HEIGHT = 600;
@@ -44,9 +31,6 @@ enum class ShaderType
     FRAGMENT = 1
 };
 
-// const unsigned int SCREEN_WIDTH = 1280;
-// const unsigned int SCREEN_HEIGHT = 960;
-
 GLuint VAO;
 GLuint VBO;
 GLuint FBO;
@@ -54,107 +38,9 @@ GLuint RBO;
 GLuint texture_id;
 GLuint shader;
 
-const char* vertex_shader_code = R"*(
-#version 330
-
-layout (location = 0) in vec3 pos;
-
-void main()
-{
-	gl_Position = vec4(0.9*pos.x, 0.9*pos.y, 0.5*pos.z, 1.0);
-}
-)*";
-
-const char* fragment_shader_code = R"*(
-#version 330
-
-out vec4 color;
-
-void main()
-{
-	color = vec4(0.0, 1.0, 0.0, 1.0);
-}
-)*";
-
-
-void create_triangle()
-{
-	GLfloat vertices[] = {
-		-1.0f, -1.0f, 0.0f, // 1. vertex x, y, z
-		1.0f, -1.0f, 0.0f, // 2. vertex ...
-		0.0f, 1.0f, 0.0f // etc... 
-	};
-
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-}
-
-void add_shader(GLuint program, const char* shader_code, GLenum type) 
-{
-	GLuint current_shader = glCreateShader(type);
-
-	const GLchar* code[1];
-	code[0] = shader_code;
-
-	GLint code_length[1];
-	code_length[0] = strlen(shader_code);
-
-	glShaderSource(current_shader, 1, code, code_length);
-	glCompileShader(current_shader);
-
-	GLint result = 0;
-	GLchar log[1024] = {0};
-
-	glGetShaderiv(current_shader, GL_COMPILE_STATUS, &result);
-	if (!result) {
-		glGetShaderInfoLog(current_shader, sizeof(log), NULL, log);
-		std::cout << "Error compiling " << type << " shader: " << log << "\n";
-		return;
-	}
-
-	glAttachShader(program, current_shader);
-}
-
-void create_shaders()
-{
-	shader = glCreateProgram();
-	if(!shader) {
-		std::cout << "Error creating shader program!\n"; 
-		exit(1);
-	}
-
-	add_shader(shader, vertex_shader_code, GL_VERTEX_SHADER);
-	add_shader(shader, fragment_shader_code, GL_FRAGMENT_SHADER);
-
-	GLint result = 0;
-	GLchar log[1024] = {0};
-
-	glLinkProgram(shader);
-	glGetProgramiv(shader, GL_LINK_STATUS, &result);
-	if (!result) {
-		glGetProgramInfoLog(shader, sizeof(log), NULL, log);
-		std::cout << "Error linking program:\n" << log << '\n';
-		return;
-	}
-
-	glValidateProgram(shader);
-	glGetProgramiv(shader, GL_VALIDATE_STATUS, &result);
-	if (!result) {
-		glGetProgramInfoLog(shader, sizeof(log), NULL, log);
-		std::cout << "Error validating program:\n" << log << '\n';
-		return;
-	}
-}
+/*
+    ImGUI setup functions
+*/
 
 void create_framebuffer()
 {
@@ -204,13 +90,10 @@ void rescale_framebuffer(float width, float height)
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 }
 
-// Control points for the Bezier curve
-// glm::vec3 controlPoints[4] = {
-//     glm::vec3(0.0f, 0.0f, 0.1f),
-//     glm::vec3(0.1f,  0.1f, 0.2f),
-//     glm::vec3( 0.2f, 0.2f, 0.3f),
-//     glm::vec3( 0.3f,  0.3f, 0.4f)
-// };
+/*
+    Bezier curve default control points
+*/
+
 std::vector<glm::vec3> controlPoints = {
     glm::vec3(0.0f, 0.0f, 0.0f),
     glm::vec3(0.0f, 0.0f, 0.987f),
@@ -317,23 +200,6 @@ void showBezierControlPoints() {
     ImGui::End();
 }
 
-GLuint curveVAO, curveVBO;
-
-void setupCurveBuffers(const std::vector<glm::vec3>& curvePoints) {
-    glGenVertexArrays(1, &curveVAO);
-    glGenBuffers(1, &curveVBO);
-
-    glBindVertexArray(curveVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, curveVBO);
-    glBufferData(GL_ARRAY_BUFFER, curvePoints.size() * sizeof(glm::vec3), curvePoints.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
-}
-
 ImU32 HSVtoRGB(float h, float s, float v) {
     float r, g, b;
 
@@ -426,33 +292,6 @@ int GetUniformLocation(unsigned int shaderProgramID, const std::string& name)
 
 GLuint secondVaoID, secondVboID, secondIboID;
 
-void create_mesh(GLuint& vaoID, GLuint& vboID, GLuint& iboID, const Mesh& mesh) {
-    // Vertices
-    const unsigned int NUM_POS_ATTRIB = 3;
-    const unsigned int NUM_NORMAL_ATTRIB = 3;
-    const unsigned int stride = (NUM_POS_ATTRIB + NUM_NORMAL_ATTRIB) * sizeof(float);
-
-    glGenVertexArrays(1, &vaoID);
-    glGenBuffers(1, &vboID);
-    glGenBuffers(1, &iboID);
-
-    glBindVertexArray(vaoID);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vboID);
-    glBufferData(GL_ARRAY_BUFFER, mesh.vertices.size() * sizeof(float), mesh.vertices.data(), GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboID);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size() * sizeof(GLuint), mesh.indices.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(0);
-}
-
 int main()
 {
 	if (!glfwInit()) {
@@ -489,8 +328,6 @@ int main()
 
 	glViewport(0, 0, bufferWidth, bufferHeight);
 
-	// create_triangle();
-	// create_shaders();
 	create_framebuffer();
 
 
@@ -526,54 +363,7 @@ int main()
     const unsigned int NUM_NORMAL_ATTRIB = 3;
     const unsigned int stride = NUM_POS_ATTRIB * sizeof(float) + NUM_NORMAL_ATTRIB * sizeof(float);
 
-    float vertices[] = {
-        // pos coord (x, y, z)      normal (x, y, z)
-        // front
-        -0.5f, -0.5f,  0.5f,        0.0f, 0.0f, 1.0f,  // 0
-         0.5f, -0.5f,  0.5f,        0.0f, 0.0f, 1.0f,  // 1
-         0.5f,  0.5f,  0.5f,        0.0f, 0.0f, 1.0f,  // 2
-        -0.5f,  0.5f,  0.5f,        0.0f, 0.0f, 1.0f,  // 3
-
-        // back
-        -0.5f, -0.5f, -0.5f,        0.0f, 0.0f, -1.0f, // 4
-         0.5f, -0.5f, -0.5f,        0.0f, 0.0f, -1.0f, // 5
-         0.5f,  0.5f, -0.5f,        0.0f, 0.0f, -1.0f, // 6
-        -0.5f,  0.5f, -0.5f,        0.0f, 0.0f, -1.0f, // 7
-
-        // left
-        -0.5f, -0.5f, -0.5f,       -1.0f, 0.0f, 0.0f,  // 8
-        -0.5f,  0.5f, -0.5f,       -1.0f, 0.0f, 0.0f,  // 9
-        -0.5f, -0.5f,  0.5f,       -1.0f, 0.0f, 0.0f,  // 10
-        -0.5f,  0.5f,  0.5f,       -1.0f, 0.0f, 0.0f,  // 11
-
-        // right
-         0.5f, -0.5f, -0.5f,        1.0f, 0.0f, 0.0f,  // 12
-         0.5f, -0.5f,  0.5f,        1.0f, 0.0f, 0.0f,  // 13
-         0.5f,  0.5f,  0.5f,        1.0f, 0.0f, 0.0f,  // 14
-         0.5f,  0.5f, -0.5f,        1.0f, 0.0f, 0.0f,  // 15
-
-        // up
-        -0.5f,  0.5f, -0.5f,        0.0f, 1.0f, 0.0f,  // 16
-         0.5f,  0.5f, -0.5f,        0.0f, 1.0f, 0.0f,  // 17
-         0.5f,  0.5f,  0.5f,        0.0f, 1.0f, 0.0f,  // 18
-        -0.5f,  0.5f,  0.5f,        0.0f, 1.0f, 0.0f,  // 19
-
-        // down
-        -0.5f, -0.5f, -0.5f,        0.0f, -1.0f, 0.0f, // 20
-         0.5f, -0.5f, -0.5f,        0.0f, -1.0f, 0.0f, // 21
-         0.5f, -0.5f,  0.5f,        0.0f, -1.0f, 0.0f, // 22
-        -0.5f, -0.5f,  0.5f,        0.0f, -1.0f, 0.0f  // 23
-    };
-
-    Mesh mesh = Mesh::test("src/models/unit_sphere.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
-    // Mesh mesh2 = Mesh::test("src/models/unit_sphere.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
-    // create_mesh(secondVaoID, secondVboID, secondIboID, mesh2);
-
-    // Print out each value of mesh.vertices and vertices
-    // for (size_t i = 0; i < sizeof(vertices); ++i)
-    // {
-    //     std::cout << "mesh.vertices[" << i << "]: " << mesh.vertices[i] << "vertices" << i << "]: " << vertices[i] << std::endl;
-    // }
+    Mesh mesh = Mesh::loadMeshFromFile("src/models/unit_sphere.stl", glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), 0.05f, 1.0f, 0.2f, 100.0f);
 
     unsigned int vboID;
     glGenBuffers(1, &vboID);                    // generate an id for this buffer
@@ -583,28 +373,6 @@ int main()
     /* ----------------------------------------------------
                            IBO
     -----------------------------------------------------*/
-    // Index buffer
-    // cube
-    // unsigned int indices[] = {
-    //     0, 1, 2,    // front
-    //     0, 2, 3,
-
-    //     4, 5, 6,    // back
-    //     4, 6, 7,
-
-    //     8,  9, 10,  // left
-    //     9, 10, 11,
-
-    //     12, 13, 14, // right
-    //     12, 14, 15,
-
-    //     16, 17, 18, // up
-    //     16, 18, 19,
-
-    //     20, 21, 22, // down
-    //     20, 22, 23        
-    // };
-    // unsigned int numVertices = sizeof(indices) / sizeof(float);
     unsigned int numIndicies = mesh.indices.size();
 
     unsigned int iboID;
@@ -698,8 +466,8 @@ int main()
            MVP (Model, View, Projection) Matrix Setup
     -----------------------------------------------------*/
     // Model matrix. Transform the model from local space to world space.
-    glm::vec3 cubePos = glm::vec3(0.0f, -0.5f, 2.0f);
-    glm::mat4 cubeModel = glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(1.0f)), cubePos);
+    glm::vec3 modelPos = glm::vec3(0.0f, -0.5f, 2.0f);
+    glm::mat4 model = glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(1.0f)), modelPos);
     glm::vec3 lightPos = glm::vec3(5.0f, 3.0f, 0.0f);
     glm::mat4 lightModel = glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.2f)), lightPos);
 
@@ -710,7 +478,7 @@ int main()
     glm::vec3 cameraBezierPoint = calculateBezierPoint(t, cameraControlPoints);
 
     // View matrix. Also known as camera matrix
-    glm::vec3 camPos = glm::vec3(0.0f, 0.0f, 100.0f);
+    glm::vec3 camPos = glm::vec3(0.0f, 0.0f, -1000.0f);
     glm::vec3 camFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 camUp = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::mat4 view = glm::lookAt(camPos, camPos + camFront, camUp);
@@ -759,12 +527,6 @@ int main()
 
         showBezierControlPoints();
         std::vector<glm::vec3> curvePoints = generateBezierCurve(controlPoints.data(), 1000);
-        setupCurveBuffers(curvePoints);
-
-        // Draw the Bezier curve in 3D
-        glBindVertexArray(curveVAO);
-        glDrawArrays(GL_LINE_STRIP, 0, curvePoints.size());
-        glBindVertexArray(0);
 
 		// Draw the Bezier curve with depth visualization
 		ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -809,6 +571,7 @@ int main()
 			}
 		}
 
+        // Draw control points for camera
         for (int i = 0; i < cameraControlPoints.size(); ++i) {
             ImVec2 handle_pos = ImVec2(pos.x + cameraControlPoints[i].x * window_width, pos.y + cameraControlPoints[i].y * window_height);
 
@@ -837,6 +600,7 @@ int main()
 		ImGui::Render();
 
 
+        // Render the scene to the ImGUI sub-window
 		bind_framebuffer();
         // Clear the color and depth buffers
         glViewport(0, 0, window_width, window_height);
@@ -853,9 +617,9 @@ int main()
 
             glm::vec3 bezierPoint = calculateBezierPoint(t, controlPoints);
             // cubeModel = glm::rotate(cubeModel, glm::radians(0.3f), glm::vec3(0.0f, 1.0f, 1.0f));    // Rotate the model
-            cubeModel = glm::translate(glm::mat4(0.5f), bezierPoint);
+            model = glm::translate(glm::mat4(0.5f), bezierPoint);
             glm::quat rotationQuat = slerp(t, rotationControlPoints);
-            cubeModel = glm::rotate(cubeModel, glm::angle(rotationQuat), glm::axis(rotationQuat));
+            model = glm::rotate(model, glm::angle(rotationQuat), glm::axis(rotationQuat));
 
 
             // Set shader values
@@ -884,7 +648,7 @@ int main()
             {
                 // MVP matrix
                 int location = GetUniformLocation(shaderProgramID, "u_model");
-                glUniformMatrix4fv(location, 1, GL_FALSE, &cubeModel[0][0]);
+                glUniformMatrix4fv(location, 1, GL_FALSE, &model[0][0]);
 
                 location = GetUniformLocation(shaderProgramID, "u_view");
                 glUniformMatrix4fv(location, 1, GL_FALSE, &view[0][0]);
@@ -903,27 +667,6 @@ int main()
             glUseProgram(0);
             glBindVertexArray(0);
         }
-
-        // {
-        //     // Draw the second object
-        //     glm::mat4 secondModel = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f)); // Adjust the position as needed
-        //     glUseProgram(shaderProgramID);
-        //     {
-        //         int location = GetUniformLocation(shaderProgramID, "u_model");
-        //         glUniformMatrix4fv(location, 1, GL_FALSE, &secondModel[0][0]);
-
-        //         location = GetUniformLocation(shaderProgramID, "u_view");
-        //         glUniformMatrix4fv(location, 1, GL_FALSE, &view[0][0]);
-
-        //         location = GetUniformLocation(shaderProgramID, "u_proj");
-        //         glUniformMatrix4fv(location, 1, GL_FALSE, &proj[0][0]);
-        //     }
-        //     glBindVertexArray(secondVaoID);
-        //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, secondIboID); // Ensure the IBO is bound
-        //     glDrawElements(GL_TRIANGLES, mesh2.indices.size(), GL_UNSIGNED_INT, nullptr);
-        //     glBindVertexArray(0);
-        //     glUseProgram(0);
-        // }
 
         {
             /* ----------------------------------------------------
@@ -958,12 +701,6 @@ int main()
             glUseProgram(0);
             glBindVertexArray(0);
         }
-		
-		// glUseProgram(shader);
-		// glBindVertexArray(VAO);
-		// glDrawArrays(GL_TRIANGLES, 0, 3);
-		// glBindVertexArray(0);
-		// glUseProgram(0);
 		
 		unbind_framebuffer();	
 

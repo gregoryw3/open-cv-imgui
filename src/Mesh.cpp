@@ -2,12 +2,10 @@
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <stl.h>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-using namespace openstl;
 using namespace std;
 using namespace Assimp;
 
@@ -21,17 +19,16 @@ using namespace Assimp;
 //     }
 // };
 
-Mesh Mesh::test(const std::string& stl_path, const glm::vec3& diffuse_color, const glm::vec3& specular_color, float ka, float kd, float ks, float ke) {
+Mesh Mesh::loadMeshFromFile(const std::string& stl_path, const glm::vec3& diffuse_color, const glm::vec3& specular_color, float ka, float kd, float ks, float ke) {
     Mesh new_mesh(diffuse_color, specular_color, ka, kd, ks, ke);
     //Load the model
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(stl_path, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices | aiShadingMode_Phong);
 
     //Check for errors
-    if ((!scene) || (scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE) || (!scene->mRootNode))
-    {
-        std::cerr << "Error loading mymodel.obj: " << std::string(importer.GetErrorString()) << std::endl;
-        return new_mesh;
+    if (!scene || !scene->HasMeshes()) {
+            std::cerr << "Error loading STL file: " << importer.GetErrorString() << std::endl;
+            return new_mesh;
     }
 
     //Create vectors for the vertices and indices

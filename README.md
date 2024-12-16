@@ -1,5 +1,7 @@
 # OpenCV and ImGUI
 
+![image](./program.png)
+
 ## Setup
 
 You must clone recursively to get the submodules.
@@ -24,6 +26,4 @@ sudo apt install libglfw3-dev -y
 
 Install emscripten and add it to your bash profile as instructed in the installation script.
 
-- https://emscripten.org/docs/getting_started/downloads.html
-
-
+- <https://emscripten.org/docs/getting_started/downloads.html>
